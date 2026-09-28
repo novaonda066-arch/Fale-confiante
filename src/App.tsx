@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import {
   ArrowLeft,
   BookOpen,
   Bot,
   Check,
   ChevronRight,
-  CirclePlay,
   Flame,
   Gauge,
   Home,
@@ -20,7 +20,6 @@ import {
   Trophy,
   UserRound,
   Volume2,
-  X,
 } from "lucide-react";
 import "./styles.css";
 import { supabase, supabaseConfigured } from "./lib/supabase";
@@ -220,7 +219,7 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
     if (!supabase) return;
     setBusy(true);
