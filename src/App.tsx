@@ -411,7 +411,7 @@ function App() {
         {page === "progresso" && <ProgressPage state={state} averageScore={averageScore} progress={progress} onBack={() => setPage("inicio")} />}
 
         {page === "perfil" && (
-          <ProfilePage state={state} onBack={() => setPage("inicio")} onSave={(name) => setState((s) => ({ ...s, name }))} />
+          <ProfilePage state={state} onBack={() => setPage("inicio")} onSave={(name) => setState((s) => ({ ...s, name }))} onSignOut={async () => { await supabase?.auth.signOut(); }} />
         )}
       </main>
 
@@ -672,13 +672,13 @@ function ProgressPage({ state, averageScore, progress, onBack }: { state: AppSta
   );
 }
 
-function ProfilePage({ state, onBack, onSave }: { state: AppState; onBack: () => void; onSave: (name: string) => void; }) {
+function ProfilePage({ state, onBack, onSave, onSignOut }: { state: AppState; onBack: () => void; onSave: (name: string) => void; onSignOut: () => Promise<void>; }) {
   const [name, setName] = useState(state.name);
   return (
     <>
       <PageHeader title="Perfil" onBack={onBack} />
       <section className="profile-card"><div className="profile-avatar"><UserRound size={28} /></div><h1>O teu perfil</h1><p className="muted">Personaliza a forma como o app te recebe.</p><label>Nome<input value={name} onChange={(e) => setName(e.target.value)} /></label><button className="primary-button wide" onClick={() => { onSave(name.trim() || "Utilizador"); onBack(); }}>Guardar alterações</button></section>
-      <section className="settings-card"><div className="setting-row"><div><strong>Áudio das lições</strong><span>Usa a voz do navegador em pt-PT.</span></div><Volume2 size={19} /></div><div className="setting-row"><div><strong>Dados locais</strong><span>O progresso desta primeira versão fica guardado neste dispositivo.</span></div><Settings size={19} /></div></section>
+      <section className="settings-card"><div className="setting-row"><div><strong>Áudio das lições</strong><span>Usa a voz do navegador em pt-PT.</span></div><Volume2 size={19} /></div><div className="setting-row"><div><strong>Dados locais</strong><span>O progresso desta primeira versão fica guardado neste dispositivo.</span></div><Settings size={19} /></div><button className="logout-button" onClick={async () => { await onSignOut(); }}>Sair da conta</button></section>
     </>
   );
 }
