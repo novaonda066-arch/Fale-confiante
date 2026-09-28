@@ -121,6 +121,16 @@ function formatDuration(seconds: number) {
   return min + ":" + sec;
 }
 
+function calculateStreak(completedLessons: number[]) {
+  const done = new Set(completedLessons);
+  let streak = 0;
+  for (let day = 1; day <= 30; day += 1) {
+    if (!done.has(day)) break;
+    streak += 1;
+  }
+  return streak;
+}
+
 function speakText(text: string) {
   if (!("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
@@ -364,7 +374,7 @@ function App() {
         coachMessages: messagesResult.data?.length
           ? messagesResult.data.map((row) => ({ role: row.role as "user" | "assistant", content: row.content }))
           : current.coachMessages,
-        streak: lessonsResult.data?.length ? current.streak : 0,
+        streak: lessonsResult.data?.length ? calculateStreak(lessonsResult.data.map((row) => Number(row.lesson_day))) : 0,
       }));
     }
 
@@ -395,7 +405,7 @@ function App() {
       ...s,
       completedLessons: completed,
       currentDay: nextDay,
-      streak: Math.max(s.streak, day),
+      streak: calculateStreak(completed),
     }));
     if (supabase && userId) {
       void Promise.all([
@@ -427,6 +437,7 @@ function App() {
             onTrain={() => { setSelectedDay(state.currentDay); setPage("treinar"); }}
             onCoach={() => setPage("treinador")}
             onLibrary={() => setPage("biblioteca")}
+            onProgress={() => setPage("progresso")}
           />
         )}
 
@@ -543,11 +554,11 @@ function HomePage({
         <Stat icon={Gauge} value={String(averageScore)} label="nota média" />
       </section>
 
-      <section className="progress-panel">
+      <button className="progress-panel progress-panel-button" onClick={onProgress}>
         <div className="panel-title-row"><div><span className="muted">O teu percurso</span><h2>Dia {state.currentDay} de 30</h2></div><strong>{progress}%</strong></div>
         <div className="progress-track"><div className="progress-fill" style={{ width: progress + "%" }} /></div>
         <p className="muted">{30 - state.completedLessons.length} lições por completar.</p>
-      </section>
+      </button>
 
       <section className="today-card">
         <div className="section-kicker">LIÇÃO DE HOJE</div>
