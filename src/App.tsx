@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import "./styles.css";
+import { supabase, supabaseConfigured } from "./lib/supabase";
 
 type Page = "inicio" | "aprender" | "treinar" | "treinador" | "biblioteca" | "progresso" | "perfil";
 
@@ -106,9 +107,9 @@ const defaultState: AppState = {
   ],
 };
 
-function loadState(): AppState {
+function loadState(storageKey = "fale-confiante-state-demo"): AppState {
   try {
-    const raw = localStorage.getItem("fale-confiante-state");
+    const raw = localStorage.getItem(storageKey);
     return raw ? { ...defaultState, ...JSON.parse(raw) } : defaultState;
   } catch {
     return defaultState;
@@ -210,6 +211,78 @@ function SpeechControl({ text }: { text: string }) {
   );
 }
 
+
+function AuthPage() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!supabase) return;
+    setBusy(true);
+    setMessage("");
+
+    if (mode === "login") {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      setMessage(error ? error.message : "");
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { data: { full_name: name.trim() } },
+      });
+      setMessage(
+        error
+          ? error.message
+          : data.session
+            ? ""
+            : "Conta criada. Verifica o teu email para concluir o acesso.",
+      );
+    }
+    setBusy(false);
+  }
+
+  async function resetPassword() {
+    if (!supabase || !email.trim()) {
+      setMessage("Introduz primeiro o teu email.");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setMessage(error ? error.message : "Enviámos as instruções de recuperação para o teu email.");
+  }
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-brand"><div className="brand-mark">FC</div><div><strong>Fale Confiante</strong><span>Treino diário de comunicação</span></div></div>
+        <div className="auth-heading">
+          <span className="eyebrow">30 dias para comunicar melhor</span>
+          <h1>{mode === "login" ? "Entra no teu espaço" : "Cria a tua conta"}</h1>
+          <p>{mode === "login" ? "Guarda o teu progresso e continua exactamente de onde paraste." : "Começa com uma conta gratuita e guarda a tua evolução."}</p>
+        </div>
+        <div className="auth-tabs">
+          <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setMessage(""); }}>Entrar</button>
+          <button className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setMessage(""); }}>Criar conta</button>
+        </div>
+        <form onSubmit={submit} className="auth-form">
+          {mode === "signup" && <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Como queres ser tratado?" required /></label>}
+          <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="o-teu@email.com" autoComplete="email" required /></label>
+          <label>Palavra-passe<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo recomendado: 8 caracteres" autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} /></label>
+          <button className="primary-button wide" disabled={busy}>{busy ? "A processar..." : mode === "login" ? "Entrar" : "Criar conta"}</button>
+        </form>
+        {mode === "login" && <button className="link-button" onClick={resetPassword}>Esqueci-me da palavra-passe</button>}
+        {message && <div className="auth-message">{message}</div>}
+      </div>
+    </div>
+  );
+}
+
 function Stat({ icon: Icon, value, label }: { icon: typeof Flame; value: string; label: string }) {
   return (
     <div className="stat-card">
@@ -221,13 +294,50 @@ function Stat({ icon: Icon, value, label }: { icon: typeof Flame; value: string;
 
 function App() {
   const [page, setPage] = useState<Page>("inicio");
-  const [state, setState] = useState<AppState>(loadState);
-  const [selectedDay, setSelectedDay] = useState(state.currentDay);
-  const [trainingOpen, setTrainingOpen] = useState(false);
+  const [state, setState] = useState<AppState>(defaultState);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [authReady, setAuthReady] = useState(!supabaseConfigured);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem("fale-confiante-state", JSON.stringify(state));
-  }, [state]);
+    if (!supabase) return;
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setUserId(data.session?.user.id ?? null);
+      setAuthReady(true);
+    });
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null);
+      setAuthReady(true);
+    });
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authReady || (supabaseConfigured && !userId)) return;
+    const storageKey = userId ? `fale-confiante-state-${userId}` : "fale-confiante-state-demo";
+    const nextState = loadState(storageKey);
+    setState(nextState);
+    setSelectedDay(nextState.currentDay);
+  }, [authReady, userId]);
+
+  useEffect(() => {
+    if (!authReady || (supabaseConfigured && !userId)) return;
+    const storageKey = userId ? `fale-confiante-state-${userId}` : "fale-confiante-state-demo";
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [state, authReady, userId]);
+
+  if (!authReady) {
+    return <div className="auth-loading"><div className="brand-mark">FC</div><p>A preparar o teu espaço...</p></div>;
+  }
+
+  if (supabaseConfigured && !userId) {
+    return <AuthPage />;
+  }
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
