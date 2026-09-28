@@ -83,7 +83,7 @@ const lessons: Lesson[] = ([
   ["Preparação antes de falar", "Cria uma rotina curta antes de qualquer apresentação.", ["Define a mensagem principal.", "Revê três palavras-chave.", "Faz dois ciclos de respiração e começa com a primeira frase já definida."], "Cria e grava a tua própria rotina de 60 segundos antes de falar."],
   ["Treino de discurso completo", "Liga as competências num único exercício.", ["Combina postura, contacto visual, ritmo, pausas e estrutura.", "Não procures perfeição numa única tentativa.", "Depois do treino, escolhe apenas um ponto para melhorar."], "Faz uma fala de dois minutos usando pelo menos cinco competências desta jornada."],
   ["Discurso final: fala com confiança", "Fecha os 30 dias com uma apresentação completa.", ["Escolhe um assunto que conheces.", "Organiza uma abertura, três ideias e um fecho.", "Fala com calma e aceita que pequenos erros fazem parte da comunicação real."], "Grava um discurso de três minutos e compara-o com o teu primeiro treino."],
-].map((x, i) => ({
+] as Array<[string, string, string[], string]>).map((x, i) => ({
   day: i + 1,
   week: Math.ceil((i + 1) / 7),
   title: x[0],
