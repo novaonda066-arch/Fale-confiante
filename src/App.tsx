@@ -390,8 +390,6 @@ function App() {
     return <AuthPage />;
   }
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), []);
-
   const currentLesson = lessons.find((l) => l.day === state.currentDay) ?? lessons[0];
   const averageScore = state.trainings.length
     ? Math.round(state.trainings.reduce((sum, x) => sum + x.score, 0) / state.trainings.length)
