@@ -317,6 +317,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if ("speechSynthesis" in window) return () => window.speechSynthesis.cancel();
+  }, []);
+
+  useEffect(() => {
     if (!authReady || (supabaseConfigured && !userId)) return;
     const storageKey = userId ? `fale-confiante-state-${userId}` : "fale-confiante-state-demo";
     const nextState = loadState(storageKey);
@@ -329,6 +333,44 @@ function App() {
     const storageKey = userId ? `fale-confiante-state-${userId}` : "fale-confiante-state-demo";
     localStorage.setItem(storageKey, JSON.stringify(state));
   }, [state, authReady, userId]);
+
+  useEffect(() => {
+    if (!supabase || !userId || !authReady) return;
+    let cancelled = false;
+
+    async function loadCloudData() {
+      const [profileResult, lessonsResult, trainingsResult, messagesResult] = await Promise.all([
+        supabase!.from("profiles").select("full_name,current_day").eq("id", userId).maybeSingle(),
+        supabase!.from("lesson_progress").select("lesson_day").eq("user_id", userId).order("lesson_day"),
+        supabase!.from("training_sessions").select("id,lesson_day,duration_seconds,score,created_at,analysis_source").eq("user_id", userId).order("created_at", { ascending: false }).limit(100),
+        supabase!.from("coach_messages").select("role,content,created_at").eq("user_id", userId).order("created_at", { ascending: true }).limit(200),
+      ]);
+
+      if (cancelled) return;
+
+      setState((current) => ({
+        ...current,
+        name: profileResult.data?.full_name?.trim() || current.name,
+        currentDay: profileResult.data?.current_day ?? current.currentDay,
+        completedLessons: lessonsResult.data?.map((row) => Number(row.lesson_day)) ?? current.completedLessons,
+        trainings: trainingsResult.data?.map((row) => ({
+          id: String(row.id),
+          day: Number(row.lesson_day),
+          duration: Number(row.duration_seconds ?? 0),
+          score: Number(row.score ?? 0),
+          createdAt: String(row.created_at),
+          demo: row.analysis_source === "demo",
+        })) ?? current.trainings,
+        coachMessages: messagesResult.data?.length
+          ? messagesResult.data.map((row) => ({ role: row.role as "user" | "assistant", content: row.content }))
+          : current.coachMessages,
+        streak: lessonsResult.data?.length ? current.streak : 0,
+      }));
+    }
+
+    void loadCloudData();
+    return () => { cancelled = true; };
+  }, [authReady, userId]); 
 
   if (!authReady) {
     return <div className="auth-loading"><div className="brand-mark">FC</div><p>A preparar o teu espaço...</p></div>;
@@ -347,12 +389,20 @@ function App() {
   const progress = Math.round((state.completedLessons.length / 30) * 100);
 
   function completeLesson(day: number) {
+    const nextDay = Math.min(30, Math.max(state.currentDay, day + 1));
+    const completed = Array.from(new Set([...state.completedLessons, day]));
     setState((s) => ({
       ...s,
-      completedLessons: Array.from(new Set([...s.completedLessons, day])),
-      currentDay: Math.min(30, Math.max(s.currentDay, day + 1)),
+      completedLessons: completed,
+      currentDay: nextDay,
       streak: Math.max(s.streak, day),
     }));
+    if (supabase && userId) {
+      void Promise.all([
+        supabase.from("lesson_progress").upsert({ user_id: userId, lesson_day: day }, { onConflict: "user_id,lesson_day" }),
+        supabase.from("profiles").upsert({ id: userId, current_day: nextDay, full_name: state.name }),
+      ]);
+    }
   }
 
   return (
@@ -394,7 +444,23 @@ function App() {
           <TrainPage
             day={selectedDay}
             onBack={() => setPage("inicio")}
-            onFinished={(training) => setState((s) => ({ ...s, trainings: [training, ...s.trainings] }))}
+            onFinished={(training) => {
+              setState((s) => ({ ...s, trainings: [training, ...s.trainings] }));
+              if (supabase && userId) {
+                void supabase.from("training_sessions").upsert({
+                  id: training.id,
+                  user_id: userId,
+                  lesson_day: training.day,
+                  duration_seconds: training.duration,
+                  score: training.score,
+                  clarity: Math.max(0, training.score - 2),
+                  pace: Math.min(100, training.score + 1),
+                  confidence: Math.max(0, training.score - 4),
+                  pauses: Math.min(100, training.score + 3),
+                  analysis_source: training.demo ? "demo" : "ai",
+                });
+              }
+            }}
           />
         )}
 
@@ -402,7 +468,16 @@ function App() {
           <CoachPage
             messages={state.coachMessages}
             onBack={() => setPage("inicio")}
-            onMessage={(message) => setState((s) => ({ ...s, coachMessages: [...s.coachMessages, message] }))}
+            onMessage={(message) => {
+            setState((s) => ({ ...s, coachMessages: [...s.coachMessages, message] }));
+            if (supabase && userId) {
+              void supabase.from("coach_messages").insert({
+                user_id: userId,
+                role: message.role,
+                content: message.content,
+              });
+            }
+          }}
           />
         )}
 
@@ -411,7 +486,12 @@ function App() {
         {page === "progresso" && <ProgressPage state={state} averageScore={averageScore} progress={progress} onBack={() => setPage("inicio")} />}
 
         {page === "perfil" && (
-          <ProfilePage state={state} onBack={() => setPage("inicio")} onSave={(name) => setState((s) => ({ ...s, name }))} onSignOut={async () => { await supabase?.auth.signOut(); }} />
+          <ProfilePage state={state} onBack={() => setPage("inicio")} onSave={(name) => {
+            setState((s) => ({ ...s, name }));
+            if (supabase && userId) {
+              void supabase.from("profiles").upsert({ id: userId, full_name: name });
+            }
+          }} onSignOut={async () => { await supabase?.auth.signOut(); }} />
         )}
       </main>
 
@@ -423,7 +503,6 @@ function App() {
         <NavItem icon={Library} label="Biblioteca" active={page === "biblioteca"} onClick={() => setPage("biblioteca")} />
       </nav>
 
-      {trainingOpen && <div />}
     </div>
   );
 }
