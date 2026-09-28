@@ -53,7 +53,7 @@ type AppState = {
   coachMessages: { role: "user" | "assistant"; content: string }[];
 };
 
-const lessons: Lesson[] = [
+const lessons: Lesson[] = ([
   ["Respiração e presença", "Aprende a baixar a tensão antes de começar a falar.", ["Antes de falar, abranda. A respiração influencia a velocidade e a sensação de controlo.", "Inspira pelo nariz durante quatro segundos, mantém por quatro e expira durante seis.", "Ao expirar, relaxa os ombros e a mandíbula. O objectivo não é respirar fundo à força, mas criar um ritmo estável."], "Grava 20 segundos a apresentar-te depois de fazeres três ciclos de respiração."],
   ["Postura que transmite segurança", "Usa o corpo para apoiar a tua mensagem.", ["Mantém os pés estáveis e evita balançar o corpo sem necessidade.", "Abre o peito sem exagerar e deixa os ombros soltos.", "Uma postura estável ajuda a voz a sair com menos tensão e torna os gestos mais claros."], "Fala durante 30 segundos mantendo os pés firmes e a cabeça levantada."],
   ["Contacto visual", "Aprende a distribuir a atenção pelo público.", ["Não precisas de olhar fixamente para uma pessoa.", "Escolhe diferentes pontos da sala e permanece alguns segundos em cada um.", "O contacto visual deve acompanhar a ideia, não competir com ela."], "Explica um tema simples olhando para três pontos diferentes à tua frente."],
